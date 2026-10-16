@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#101522">
+
+<title>Midnapore Durga Puja Live Map 2026</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #101522;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+header {
+    padding: 17px 12px;
+    text-align: center;
+    background: #171f32;
+}
+
+header h2 {
+    margin: 0 0 6px;
+    font-size: 19px;
+}
+
+header p {
+    margin: 0;
+    color: #c4cce0;
+    font-size: 12px;
+}
+
+.controls {
+    display: flex;
+    gap: 9px;
+    padding: 12px;
+}
+
+button {
+    flex: 1;
+    border: 0;
+    border-radius: 10px;
+    padding: 14px 8px;
+    background: #ff3155;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button.stop {
+    background: #29364e;
+}
+
+#status {
+    margin: 0 12px 12px;
+    padding: 12px;
+    border-radius: 10px;
+    background: #1b2940;
+    color: #edf3ff;
+    font-size: 12px;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+}
+
+.map-container {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    background: #ffcf45;
+}
+
+#mapImage {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+#accuracy {
+    display: none;
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid #1685ff75;
+    background: #1685ff20;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+#player {
+    display: none;
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    filter: drop-shadow(0 2px 4px #0008);
+}
+
+.arrow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-left: 13px solid transparent;
+    border-right: 13px solid transparent;
+    border-bottom: 35px solid #087cff;
+    transform: translate(-50%, -50%) rotate(0deg);
+    transform-origin: center center;
+}
+
+.arrow::after {
+    content: "";
+    position: absolute;
+    left: -6px;
+    top: 15px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: white;
+}
+
+.legend {
+    margin: 12px;
+    padding: 13px;
+    background: #171f32;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.8;
+}
+
+footer {
+    text-align: center;
+    padding: 15px 10px;
+    font-size: 11px;
+    color: #9daac1;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h2>📍 Midnapore Puja Live Map</h2>
+    <p>Durga Puja Guide Map · 2026</p>
+</header>
+
+<div class="controls">
+    <button onclick="startGPS()">🛰️ Start Live GPS</button>
+    <button class="stop" onclick="stopGPS()">⏹ Stop</button>
+</div>
+
+<div id="status">
+    Tap Start Live GPS and allow location access.
+</div>
+
+<div class="map-container" id="mapContainer">
+
+    <img id="mapImage"
+         src="map.png"
+         alt="Midnapore Durga Puja Guide Map 2026">
+
+    <div id="accuracy"></div>
+
+    <div id="player">
+        <div class="arrow"></div>
+    </div>
+
+</div>
+
+<div class="legend">
+    <strong>🧭 How it works</strong><br>
+    🔵 Blue arrow: your estimated direction of travel.<br>
+    📡 GPS: your phone's reported location.<br>
+    🗺️ Background: your supplied Durga Puja poster.<br><br>
+
+    <strong>Important:</strong> The arrow is displayed at an
+    approximate position on the poster. This poster is not
+    geographically calibrated, so the arrow is not yet a
+    reliable indicator of your exact position on the map.
+    The arrow estimates direction from movement and may be
+    inaccurate when stationary or moving slowly.
+</div>
+
+<footer>
+    Midnapore Durga Puja Live Map · 2026
+</footer>
+
+<script>
+const mapImage = document.getElementById("mapImage");
+const player = document.getElementById("player");
+const arrow = document.querySelector(".arrow");
+const accuracyCircle = document.getElementById("accuracy");
+const statusBox = document.getElementById("status");
+
+let watchId = null;
+let lastPosition = null;
+let currentHeading = 0;
+let isTracking = false;
+
+/*
+ * TEMPORARY POSTER POSITION
+ *
+ * This displays the arrow near the centre of the map.
+ * Accurate placement requires geographical calibration.
+ */
+function getPosterPosition(latitude, longitude) {
+    return {
+        x: 50,
+        y: 48
+    };
+}
+
+function distanceMetres(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const rad = value => value * Math.PI / 180;
+
+    const dLat = rad(lat2 - lat1);
+    const dLon = rad(lon2 - lon1);
+
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(rad(lat1)) *
+        Math.cos(rad(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+
+    return R * 2 * Math.atan2(
+        Math.sqrt(a),
+        Math.sqrt(1 - a)
+    );
+}
+
+function bearingDegrees(lat1, lon1, lat2, lon2) {
+    const rad = value => value * Math.PI / 180;
+
+    const p1 = rad(lat1);
+    const p2 = rad(lat2);
+    const dLon = rad(lon2 - lon1);
+
+    const y = Math.sin(dLon) * Math.cos(p2);
+
+    const x =
+        Math.cos(p1) * Math.sin(p2) -
+        Math.sin(p1) * Math.cos(p2) * Math.cos(dLon);
+
+    return (
+        Math.atan2(y, x) * 180 / Math.PI + 360
+    ) % 360;
+}
+
+function updatePosition(position) {
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+    const accuracy = position.coords.accuracy;
+
+    /*
+     * Estimate heading from movement.
+     * Small movements are ignored to reduce GPS jitter.
+     */
+    if (lastPosition) {
+        const distance = distanceMetres(
+            lastPosition.latitude,
+            lastPosition.longitude,
+            latitude,
+            longitude
+        );
+
+        if (distance >= 5) {
+            currentHeading = bearingDegrees(
+                lastPosition.latitude,
+                lastPosition.longitude,
+                latitude,
+                longitude
+            );
+
+            arrow.style.transform =
+                `translate(-50%, -50%) rotate(${currentHeading}deg)`;
+        }
+    }
+
+    lastPosition = {
+        latitude: latitude,
+        longitude: longitude
+    };
+
+    const point = getPosterPosition(latitude, longitude);
+
+    player.style.left = point.x + "%";
+    player.style.top = point.y + "%";
+    player.style.display = "block";
+
+    accuracyCircle.style.left = point.x + "%";
+    accuracyCircle.style.top = point.y + "%";
+
+    /*
+     * This circle is illustrative, not a geographically
+     * scaled representation of the GPS accuracy radius.
+     */
+    const size = Math.max(
+        35,
+        Math.min(120, accuracy / 2)
+    );
+
+    accuracyCircle.style.width = size + "px";
+    accuracyCircle.style.height = size + "px";
+    accuracyCircle.style.display = "block";
+
+    statusBox.innerHTML =
+        "<strong>✅ GPS Connected</strong><br>" +
+        "Latitude: " + latitude.toFixed(6) + "<br>" +
+        "Longitude: " + longitude.toFixed(6) + "<br>" +
+        "Reported GPS accuracy: ±" +
+        Math.round(accuracy) + " metres<br>" +
+        "Estimated movement direction: " +
+        Math.round(currentHeading) + "° from north<br>" +
+        "<span style='color:#ffd477'>" +
+        "Poster position is approximate.</span>";
+}
+
+function handleError(error) {
+    let message;
+
+    switch (error.code) {
+        case 1:
+            message =
+                "Location permission denied. Allow location access for this website in your browser settings.";
+            break;
+
+        case 2:
+            message =
+                "Location unavailable. Turn on phone Location and try outdoors.";
+            break;
+
+        case 3:
+            message =
+                "Location request timed out. Please try again.";
+            break;
+
+        default:
+            message = "Could not get your location.";
+    }
+
+    statusBox.textContent = "⚠️ " + message;
+}
+
+function startGPS() {
+    if (!navigator.geolocation) {
+        statusBox.textContent =
+            "Your browser does not support GPS location.";
+        return;
+    }
+
+    if (!window.isSecureContext) {
+        statusBox.textContent =
+            "GPS requires HTTPS or a supported localhost address. Open your published GitHub Pages HTTPS website.";
+        return;
+    }
+
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+    }
+
+    lastPosition = null;
+    currentHeading = 0;
+
+    statusBox.textContent =
+        "Requesting location permission. Please wait...";
+
+    isTracking = true;
+
+    watchId = navigator.geolocation.watchPosition(
+        updatePosition,
+        handleError,
+        {
+            enableHighAccuracy: true,
+            maximumAge: 1000,
+            timeout: 20000
+        }
+    );
+}
+
+function stopGPS() {
+    isTracking = false;
+
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+
+    lastPosition = null;
+
+    player.style.display = "none";
+    accuracyCircle.style.display = "none";
+
+    statusBox.textContent = "GPS tracking stopped.";
+}
+
+mapImage.onerror = function() {
+    statusBox.textContent =
+        "Map image not found. Upload map.png beside index.html.";
+};
+</script>
+
+</body>
+</html>
